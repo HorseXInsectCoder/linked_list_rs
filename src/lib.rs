@@ -1,43 +1,34 @@
-use std::mem::replace;
 
-#[derive(Debug)]
+type Link = Option<Box<Node>>;
+
 struct Node {
     elem: i32,
     next: Link,
 }
 
-#[derive(Debug)]
-enum Link {
-    Empty,
-    More(Box<Node>),
-}
-
-#[derive(Debug)]
 struct List {
-    head: Link,
+    head: Link
 }
 
 impl List {
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self {
-            head: Link::Empty
+            head: None
         }
     }
 
-    pub fn push(&mut self, elem: i32) {
+    fn push(&mut self, elem: i32) {
         let node = Box::new(Node {
             elem,
-            // 新的节点指向原来头节点所指的指针；做完这一步后，头节点是指向空的
-            next: replace(&mut self.head, Link::Empty),
+            next: self.head.take(),
         });
-        // 头节点指向新的节点
-        self.head = Link::More(node);
+        self.head = Some(node);
     }
 
-    pub fn pop(&mut self) -> Option<i32> {
-        match replace(&mut self.head, Link::Empty) {
-            Link::Empty => None,
-            Link::More(node) => {
+    fn pop(&mut self) -> Option<i32> {
+        match self.head.take() {
+            None => None,
+            Some(node) => {
                 self.head = node.next;
                 Some(node.elem)
             }
@@ -45,15 +36,6 @@ impl List {
     }
 }
 
-impl Drop for List {
-    fn drop(&mut self) {
-        // 循环把元素都drop掉
-        let mut link = replace(&mut self.head, Link::Empty);
-        while let Link::More(mut node) = link {
-            link = replace(&mut node.next, Link::Empty);
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {
