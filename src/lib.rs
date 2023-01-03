@@ -1,5 +1,4 @@
 
-
 type Link<T> = Option<Box<Node<T>>>;
 
 struct Node<T> {
@@ -57,6 +56,77 @@ impl<T> List<T> {
     }
 }
 
+// 要实现的迭代器
+// IntoIter => T
+// Iter => &T
+// IterMut => &mut T
+struct IntoIter<T>(List<T>);
+
+impl<T> List<T> {
+    // 这里的self是List<T>
+    fn into_iter(self) -> IntoIter<T> {
+        IntoIter(self)
+    }
+}
+
+impl<T> Iterator for IntoIter<T> {
+    type Item = T;
+
+    // 这里的self是IntoIter<T>
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.pop()
+    }
+}
+
+struct Iter<'a, T> {
+    next: Option<&'a Node<T>>,
+}
+
+impl<T> List<T> {
+    fn iter(&self) -> Iter<T> {     // 这里省略了生命周期
+        Iter{
+            // 由于我们是Option<&'a Node<T>>,引用在Option里面，所以要用as_deref，把self.head拿到的数据转为Option<&'a Node<T>>
+            // Converts from Option<T> (or &Option<T>) to Option<&T::Target>.
+            next: self.head.as_deref()
+        }
+    }
+}
+
+impl<'a, T> Iterator for Iter<'a, T> {
+    type Item = &'a T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.next.map(|node| {
+            self.next = node.next.as_deref();
+            &node.elem      // 返回引用
+        })
+    }
+}
+
+struct IterMut<'a, T> {
+    next: Option<&'a mut Node<T>>
+}
+
+impl<T> List<T> {
+    fn iter_mut(&mut self) -> IterMut<T> {
+        IterMut {
+            next: self.head.as_deref_mut()
+        }
+    }
+}
+
+impl<'a, T> Iterator for IterMut<'a, T> {
+    type Item = &'a mut T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.next.take().map(|node| {
+            self.next = node.next.as_deref_mut();
+            &mut node.elem
+        })
+    }
+}
+
+
 impl<T> Drop for List<T> {
     fn drop(&mut self) {
         let mut link = self.head.take();
@@ -104,5 +174,50 @@ mod tests {
         assert_eq!(list.peek(), Some(&"switzerland"));
         assert_eq!(list.pop(), Some("switzerland"));
         assert_eq!(list.pop(), Some("world"));
+    }
+
+    #[test]
+    fn into_iter_works() {
+        let mut list = List::new();
+
+        list.push("hello");
+        list.push("world");
+        list.push("swiss");
+
+        let mut iter = list.into_iter();
+        assert_eq!(iter.next(), Some("swiss"));
+        assert_eq!(iter.next(), Some("world"));
+        assert_eq!(iter.next(), Some("hello"));
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn iter_works() {
+        let mut list = List::new();
+
+        list.push("hello");
+        list.push("world");
+        list.push("swiss");
+
+        let mut iter = list.iter();
+        assert_eq!(iter.next(), Some(&"swiss"));
+        assert_eq!(iter.next(), Some(&"world"));
+        assert_eq!(iter.next(), Some(&"hello"));
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn iter_mut_works() {
+        let mut list = List::new();
+
+        list.push("hello");
+        list.push("world");
+        list.push("swiss");
+
+        let mut iter = list.iter_mut();
+        assert_eq!(iter.next(), Some(&mut "swiss"));
+        assert_eq!(iter.next(), Some(&mut "world"));
+        assert_eq!(iter.next(), Some(&mut "hello"));
+        assert_eq!(iter.next(), None);
     }
 }
