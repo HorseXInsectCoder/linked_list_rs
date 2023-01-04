@@ -73,7 +73,19 @@ impl<'a, T> Iterator for Iter<'a, T> {
     }
 }
 
-
+impl<T> Drop for List<T> {
+    fn drop(&mut self) {
+        let mut head = self.head.take();
+        while let Some(node) = head {
+            // 不能直接拿Rc的值，因为还可能有其他的变量在引用；当强引用计数为 0 时才能取出来，所以用Rc::try_unwrap
+            if let Ok(mut node) = Rc::try_unwrap(node) {
+                head = node.next.take();
+            } else {
+                break;
+            }
+        }
+    }
+}
 
 
 #[cfg(test)]
