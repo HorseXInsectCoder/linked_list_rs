@@ -1,91 +1,62 @@
+use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::Arc;
 
-type Link<T> = Option<Rc<Node<T>>>;
-
-struct Node<T> {
-    elem: T,
-    next: Link<T>
-}
+type Link<T> = Option<Rc<RefCell<Node<T>>>>;
 
 struct List<T> {
     head: Link<T>,
+    tail: Link<T>,
+}
+
+struct Node<T> {
+    elem: T,
+    next: Link<T>,
+    prev: Link<T>,
+}
+
+impl<T> Node<T> {
+    fn new(elem: T) -> Rc<RefCell<Self>> {
+        Rc::new(RefCell::new(Self {
+            elem,
+            next: None,
+            prev: None
+        }))
+    }
 }
 
 impl<T> List<T> {
     fn new() -> Self {
         Self {
-            head: None
+            head: None,
+            tail: None
         }
     }
 
-    fn append(&mut self, elem: T) -> List<T> {
-        List {
-            head: Some(Rc::new(Node {
-                elem,
-                // 由于使用了Rc，所以这里是clone，而不是之前的take。即这里的引用计数加 1
-                next: self.head.clone(),
-            }))
-        }
-    }
+    fn push_front(&mut self, elem: T) {
+        // let node = Rc::new(RefCell::new(Node {
+        //     elem,
+        //     next: None,
+        //     prev: None
+        // }));
 
-    fn tail(&self) -> List<T> {
-        List {
-            // Returns [`None`] if the option is [`None`], otherwise calls `f` with the wrapped value and returns the result
-            // and_then的参数是一个闭包
-            head: self.head.as_ref().and_then(|node| {
-                node.next.clone()
-            })
-        }
-    }
+        let node = Node::new(elem);
 
-    // 返回头节点元素
-    fn head(&self) -> Option<&T> {
-        self.head.as_ref().map(|node| {
-            &node.elem
-        })
-    }
-}
-
-struct Iter<'a, T> {
-    next: Option<&'a Node<T>>
-}
-
-impl<T> List<T> {
-    fn iter(&self) -> Iter<T> {
-        Iter {
-            // next: self.head.as_ref()     // 会得到 Option<&Rc<Node<T>>>
-
-            // Converts from Option<T> (or &Option<T>) to Option<&T::Target>.
-            next: self.head.as_deref()     // Option<&<T as Deref>::Target>
-
+        match self.head.take() {
+            Some(head) => {
+                head.borrow_mut().prev = Some(node.clone());
+                node.borrow_mut().next = Some(head);
+                self.head = Some(node);
+            },
+            None => {
+                self.tail = Some(node.clone());
+                self.head = Some(node.clone());
+            },
         }
     }
 }
 
-impl<'a, T> Iterator for Iter<'a, T> {
-    type Item = &'a T;
 
-    fn next(&mut self) -> Option<Self::Item> {
-        self.next.map(|node| {
-            self.next = node.next.as_deref();
-            &node.elem
-        })
-    }
-}
-
-impl<T> Drop for List<T> {
-    fn drop(&mut self) {
-        let mut head = self.head.take();
-        while let Some(node) = head {
-            // 不能直接拿Rc的值，因为还可能有其他的变量在引用；当强引用计数为 0 时才能取出来，所以用Rc::try_unwrap
-            if let Ok(mut node) = Rc::try_unwrap(node) {
-                head = node.next.take();
-            } else {
-                break;
-            }
-        }
-    }
-}
 
 
 #[cfg(test)]
