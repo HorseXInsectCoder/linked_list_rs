@@ -1,4 +1,6 @@
+
 use std::cell::RefCell;
+use std::ops::Deref;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -54,6 +56,29 @@ impl<T> List<T> {
             },
         }
     }
+
+    fn pop_front(&mut self) -> Option<T> {
+        self.head.take().map(|node: Rc<RefCell<Node<T>>>| {
+            // match node.borrow_mut().next.take() {
+            //     Some(next) => {
+            //         next.borrow_mut().prev = None;
+            //         self.head = Some(next);
+            //     },
+            //     None => {
+            //         self.tail.take();
+            //     }
+            // }
+
+            if let Some(next) = node.borrow_mut().next.take() {
+                next.borrow_mut().prev = None;
+                self.head = Some(next);
+            } else {
+                self.tail.take();
+            }
+
+            Rc::try_unwrap(node).ok().unwrap().into_inner().elem
+        })
+    }
 }
 
 
@@ -66,26 +91,21 @@ mod tests {
     #[test]
     fn basics_work() {
         let mut list = List::new();
-        assert_eq!(list.head(), None);
+        assert_eq!(list.pop_front(), None);
 
-        let list = list.append("hello").append("world").append("swiss");
-        assert_eq!(list.head(), Some(&"swiss"));
+        list.push_front(1);
+        list.push_front(2);
+        list.push_front(3);
 
-        let list = list.tail();
-        assert_eq!(list.head(), Some(&"world"));
+        assert_eq!(list.pop_front(), Some(3));
+        assert_eq!(list.pop_front(), Some(2));
 
-        let list = list.tail().tail();
-        assert_eq!(list.head(), None);
-    }
+        list.push_front(4);
+        list.push_front(5);
 
-    #[test]
-    fn iter_works() {
-        let mut list = List::new().append(1).append(2).append(3);
-
-        let mut iter = list.iter();
-        assert_eq!(iter.next(), Some(&3));
-        assert_eq!(iter.next(), Some(&2));
-        assert_eq!(iter.next(), Some(&1));
-        assert_eq!(iter.next(), None);
+        assert_eq!(list.pop_front(), Some(5));
+        assert_eq!(list.pop_front(), Some(4));
+        assert_eq!(list.pop_front(), Some(1));
+        assert_eq!(list.pop_front(), None);
     }
 }
