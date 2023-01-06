@@ -1,4 +1,4 @@
-use std::ptr;
+
 
 type Link<T> = Option<Box<Node<T>>>;
 
@@ -7,111 +7,62 @@ struct Node<T> {
     next: Link<T>,
 }
 
-struct List<T> {
-    head: Link<T>,
-    tail: *mut Node<T>,
+struct Stack<T> {
+    head: Link<T>
 }
 
-impl<T> List<T> {
+impl<T> Stack<T> {
     pub fn new() -> Self {
         Self {
-            head: None,
-            tail: ptr::null_mut()        // 由于tail的类型是指针，所以不能直接用None
+            head: None
         }
     }
 
-    // 从尾部push进去
+    fn push_node(&mut self, mut node: Box<Node<T>>) {
+        node.next = self.head.take();
+        self.head = Some(node);
+    }
+
     pub fn push(&mut self, elem: T) {
-        let mut new_tail = Box::new(Node {
+        let node = Box::new(Node {
             elem,
             next: None,
         });
-        let raw_tail: *mut _ = &mut *new_tail;      // 自动推断为&mut Node<T>类型会无法编译，要手动加上 *mut _
-
-        if !self.tail.is_null() {
-            unsafe {
-                (*self.tail).next = Some(new_tail);
-            }
-        } else {
-            self.head = Some(new_tail);
-        }
-        self.tail = raw_tail;
+        self.push_node(node);
     }
 
     pub fn pop(&mut self) -> Option<T> {
-        self.head.take().map(|node| {
-            let head = *node;
-            self.head = head.next;
-
-            // 由于上面那步已经把要pop的节点的下一个元素被self.head指向了，所以要检查这个元素是否为空
-            // 如果该元素为空，那么self这个位置就给它一个尾指针
-            if self.head.is_none() {
-                self.tail = ptr::null_mut();
-            }
-            head.elem
+        self.pop_node().map(|node| {
+            node.elem
         })
     }
-}
 
-pub struct IntoIter<T>(List<T>);
-
-impl<T> List<T> {
-    pub fn into_iter(self) -> IntoIter<T> {
-        IntoIter(self)
+    fn pop_node(&mut self) -> Option<Box<Node<T>>> {
+        self.head.take().map(|mut node: Box<Node<T>>| {
+            self.head = node.next.take();
+            node
+        })
     }
-}
 
-impl<T> Iterator for IntoIter<T> {
-    type Item = T;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.pop()
-    }
-}
-
-pub struct Iter<'a, T> {
-    next: Option<&'a Node<T>>,
-}
-
-impl<T> List<T> {
-    pub fn iter(&self) -> Iter<T> {
-        Iter {
-            next: self.head.as_deref()
-        }
-    }
-}
-
-impl<'a, T> Iterator for Iter<'a, T> {
-    type Item = &'a T;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.next.take().map(|node| {
-            self.next = node.next.as_deref();
+    pub fn peek(&self) -> Option<&T> {
+        self.head.as_ref().map(|node| {
             &node.elem
         })
     }
-}
 
-struct IterMut<'a, T> {
-    next: Option<&'a mut Node<T>>
-}
-
-impl<T> List<T> {
-    pub fn iter_mut(&mut self) -> IterMut<T> {
-        IterMut {
-            next: self.head.as_deref_mut()
-        }
+    pub fn peek_mut(&mut self) -> Option<&mut T> {
+        self.head.as_mut().map(|node| {
+            &mut node.elem
+        })
     }
 }
 
-impl<'a, T> Iterator for IterMut<'a, T> {
-    type Item = &'a mut T;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.next.take().map(|node| {
-            self.next = node.next.as_deref_mut();
-            &mut node.elem
-        })
+impl<T> Drop for Stack<T> {
+    fn drop(&mut self) {
+        let mut link = self.head.take();
+        while let Some(mut node) = link {
+            link = node.next.take()
+        }
     }
 }
 
